@@ -2,6 +2,7 @@ import * as Yup from 'yup';
 import Order from '../schemas/Order';
 import Product from '../models/Product';
 import Category from '../models/Category';
+import User from '../models/User';
 
 class OrderController {
   async store(request, response) {
@@ -18,8 +19,8 @@ class OrderController {
 
     try {
       schema.validateSync(request.body, { abortEarly: false });
-    } catch (error) {
-      return response.status(400).json(error.errors);
+    } catch (err) {
+      return response.status(400).json({ error: err.errors });
     }
 
     const { products } = request.body;
@@ -40,8 +41,7 @@ class OrderController {
     });
 
     const formattedProducts = findProducts.map((product) => {
-
-      const productIndex = products.findIndex(item => item.id === product.id);
+      const productIndex = products.findIndex((item) => item.id === product.id);
 
       const newProduct = {
         id: product.id,
@@ -60,9 +60,47 @@ class OrderController {
         name: request.userName,
       },
       products: formattedProducts,
+      status: 'Pedido Realizado',
     };
 
-    return response.status(201).json({ order });
+    const createdOrder = await Order.create(order);
+
+    return response.status(201).json(createdOrder);
+  }
+
+  async index(request, response) {
+    const orders = await Order.find();
+
+    return response.json(orders);
+  }
+
+  async update(request, response) {
+    const schema = Yup.object({
+      status: Yup.string().required(),
+    });
+
+    try {
+      schema.validateSync(request.body, { abortEarly: false });
+    } catch (err) {
+      return response.status(400).json({ error: err.errors });
+    }
+
+    const { admin: isAdmin} = await User.findByPk(request.userId);
+
+    if(!isAdmin) {
+      return response.status(401).json();
+    }
+
+    const { id } = request.params;
+    const { status } = request.body;
+
+    try {
+      await Order.updateOne({ _id: id }, { status });
+    } catch (error) {
+      return response.status(400).json({ error: error.errors });
+    }
+
+    return response.json({ message: 'Status updated successfully' });
   }
 }
 
